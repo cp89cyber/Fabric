@@ -80,6 +80,13 @@ func Cli(version string) (err error) {
 		return
 	}
 
+	// Validate prompt-export-only combinations before any expensive preprocessing.
+	if currentFlags.PrintPrompt {
+		if err = validatePromptExportFlags(currentFlags); err != nil {
+			return
+		}
+	}
+
 	// Handle transcription if specified
 	if currentFlags.TranscribeFile != "" {
 		var transcriptionMessage string
@@ -109,6 +116,11 @@ func Cli(version string) (err error) {
 		return nil
 	}
 
+	// Handle prompt export
+	if handled, err = handlePromptExport(currentFlags, registry, messageTools); err != nil || handled {
+		return
+	}
+
 	// Handle chat processing
 	err = handleChatProcessing(currentFlags, registry, messageTools)
 	return
@@ -117,7 +129,7 @@ func Cli(version string) (err error) {
 func processYoutubeVideo(
 	flags *Flags, registry *core.PluginRegistry, videoId string) (message string, err error) {
 
-	if (!flags.YouTubeComments && !flags.YouTubeMetadata) || flags.YouTubeTranscript || flags.YouTubeTranscriptWithTimestamps {
+	if (!flags.YouTubeComments && !flags.YouTubeMetadata && !flags.YouTubeVisual) || flags.YouTubeTranscript || flags.YouTubeTranscriptWithTimestamps {
 		var transcript string
 		var language = "en"
 		if flags.Language != "" || registry.Language.DefaultLanguage.Value != "" {
@@ -137,6 +149,20 @@ func processYoutubeVideo(
 			}
 		}
 		message = AppendMessage(message, transcript)
+	}
+
+	if flags.YouTubeVisual {
+		var visualText string
+		var language = "en"
+		if flags.Language != "" {
+			language = flags.Language
+		} else if registry.Language.DefaultLanguage.Value != "" {
+			language = registry.Language.DefaultLanguage.Value
+		}
+		if visualText, err = registry.YouTube.GrabVisual(videoId, language, flags.YtDlpArgs, flags.YouTubeVisualSensitivity, flags.YouTubeVisualFps); err != nil {
+			return
+		}
+		message = AppendMessage(message, visualText)
 	}
 
 	if flags.YouTubeComments {
