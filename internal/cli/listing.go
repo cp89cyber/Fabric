@@ -5,7 +5,7 @@ import (
 	"os"
 	"strconv"
 
-	openai "github.com/openai/openai-go"
+	openai "github.com/openai/openai-go/v3"
 
 	"github.com/danielmiessler/fabric/internal/core"
 	"github.com/danielmiessler/fabric/internal/i18n"
@@ -14,8 +14,8 @@ import (
 	"github.com/danielmiessler/fabric/internal/plugins/db/fsdb"
 )
 
-// handleListingCommands handles listing-related commands
-// Returns (handled, error) where handled indicates if a command was processed and should exit
+// handleListingCommands runs the list and print commands.
+// It returns handled = true when a command ran and the caller must exit.
 func handleListingCommands(currentFlags *Flags, fabricDb *fsdb.Db, registry *core.PluginRegistry) (handled bool, err error) {
 	if currentFlags.LatestPatterns != "0" {
 		var parsedToInt int
@@ -29,15 +29,18 @@ func handleListingCommands(currentFlags *Flags, fabricDb *fsdb.Db, registry *cor
 		return true, nil
 	}
 
+	if currentFlags.ReadPattern != "" {
+		err = fabricDb.Patterns.PrintPattern(currentFlags.ReadPattern)
+		return true, err
+	}
+
 	if currentFlags.ListPatterns {
-		// Check if patterns exist before listing
 		var names []string
 		if names, err = fabricDb.Patterns.GetNames(); err != nil {
 			return true, err
 		}
 
 		if len(names) == 0 && !currentFlags.ShellCompleteOutput {
-			// No patterns found - provide helpful guidance
 			fmt.Println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 			fmt.Println(i18n.T("patterns_not_found_header"))
 			fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
@@ -108,7 +111,6 @@ func handleListingCommands(currentFlags *Flags, fabricDb *fsdb.Db, registry *cor
 	return false, nil
 }
 
-// listTranscriptionModels lists all available transcription models
 func listTranscriptionModels(shellComplete bool) {
 	models := []string{
 		string(openai.AudioModelWhisper1),

@@ -82,6 +82,7 @@ Below are the **new features and capabilities** we've added (newest first):
 
 ### Recent Major Features
 
+- [v1.4.447](https://github.com/danielmiessler/fabric/releases/tag/v1.4.447) (April 16, 2026) — **Claude Opus 4.7**: Updates the Anthropic SDK to v1.37.0 and adds the new [Claude Opus 4.7](https://www.anthropic.com/news/claude-opus-4-7) to the available models, including 1M-token context window support.
 - [v1.4.437](https://github.com/danielmiessler/fabric/releases/tag/v1.4.437) (March 16, 2026) — **OpenAI Codex PLugin**: Fabric now supports using OpenAI Codex (with your OpenAI subscription) as a backend!
 - [v1.4.417](https://github.com/danielmiessler/fabric/releases/tag/v1.4.417) (Feb 21, 2026) — **Azure AI Gateway Plugin**: Added Azure AI Gateway plugin supporting multiple backends (AWS Bedrock, Azure OpenAI, Google Vertex AI) through a unified Azure APIM Gateway with shared subscription key authentication.
 - [v1.4.416](https://github.com/danielmiessler/fabric/releases/tag/v1.4.416) (Feb 21, 2026) — **Azure Entra ID Authentication**: Added Azure Entra ID authentication plugin with shared Azure utilities, Entra ID/MSAL support, and extracted common Azure logic into a reusable `azurecommon` package.
@@ -136,6 +137,7 @@ Keep in mind that many of these were recorded when Fabric was Python-based, so r
       - [macOS (Homebrew)](#macos-homebrew)
       - [Arch Linux (AUR)](#arch-linux-aur)
       - [Windows](#windows)
+      - [Windows (Scoop)](#windows-scoop)
     - [From Source](#from-source)
     - [Docker](#docker)
     - [Environment Variables](#environment-variables)
@@ -262,6 +264,10 @@ Use the official Microsoft supported `Winget` tool:
 
 `winget install danielmiessler.Fabric`
 
+#### Windows (Scoop)
+
+`scoop install fabric-ai`
+
 ### From Source
 
 To install Fabric, [make sure Go is installed](https://go.dev/doc/install), and then run the following command.
@@ -284,13 +290,13 @@ docker run --rm -it ghcr.io/ksylvan/fabric:v1.4.305 --version
 
 # Run setup (first time)
 mkdir -p $HOME/.fabric-config
-docker run --rm -it -v $HOME/.fabric-config:/root/.config/fabric kayvan/fabric:latest --setup
+docker run --rm -it -v $HOME/.fabric-config:/home/appuser/.config/fabric kayvan/fabric:latest --setup
 
 # Use Fabric with your patterns
-docker run --rm -it -v $HOME/.fabric-config:/root/.config/fabric kayvan/fabric:latest -p summarize
+docker run --rm -it -v $HOME/.fabric-config:/home/appuser/.config/fabric kayvan/fabric:latest -p summarize
 
 # Run the REST API server (see REST API Server section)
-docker run --rm -it -p 8080:8080 -v $HOME/.fabric-config:/root/.config/fabric kayvan/fabric:latest --serve
+docker run --rm -it -p 8080:8080 -v $HOME/.fabric-config:/home/appuser/.config/fabric kayvan/fabric:latest --serve
 ```
 
 **Images available at:**
@@ -344,6 +350,7 @@ Fabric supports a wide range of AI providers:
 - OpenAI
 - OpenAI Codex (ChatGPT/Codex subscription OAuth via private backend)
 - Anthropic (Claude)
+- Claude Code (Claude subscription via the local `claude` CLI)
 - Google Gemini
 - Ollama (local models)
 - Azure OpenAI
@@ -356,10 +363,14 @@ Fabric supports a wide range of AI providers:
 
 - Abacus
 - AIML
+- API Route
+- Apple Foundation Models (local, macOS 27 or later: run `sudo fm license` once, then `fm serve --port 1976`; no API key; select it once in `fabric -S` to enable it)
 - Cerebras
+- Cheaper Inference
 - DeepSeek
+- DemonRoute
 - DigitalOcean
-- GitHub Models
+- Eden AI
 - GrokAI
 - Groq
 - Langdock
@@ -367,10 +378,17 @@ Fabric supports a wide range of AI providers:
 - MiniMax
 - Mistral
 - Novita AI
+- OpenCode Go
+- OpenCode Zen
 - OpenRouter
+- OrcaRouter
+- Pzero
+- Requesty
 - SiliconCloud
+- Synthorai
 - Together
 - Venice AI
+- Y-API
 - Z AI
 
 Run `fabric --setup` to configure your preferred provider(s), or use `fabric --listvendors` to see all available vendors.
@@ -407,6 +425,7 @@ yt() {
     if [ "$#" -eq 0 ] || [ "$#" -gt 2 ]; then
         echo "Usage: yt [-t | --timestamps] youtube-link"
         echo "Use the '-t' flag to get the transcript with timestamps."
+        echo "Pipe to a pattern: yt URL | fabric -p extract_wisdom"
         return 1
     fi
 
@@ -416,6 +435,8 @@ yt() {
         shift
     fi
     local video_link="$1"
+    # Outputs the raw transcript to stdout so it can be piped to a pattern:
+    #   yt URL | fabric -p extract_wisdom
     fabric -y "$video_link" $transcript_flag
 }
 ```
@@ -494,20 +515,28 @@ function yt {
     process {
         if (-not $videoLink) {
             Write-Error "Usage: yt [-t | --timestamps] youtube-link"
+            Write-Host "Pipe to a pattern: yt URL | fabric -p extract_wisdom"
             return
         }
     }
 
     end {
         if ($videoLink) {
-            # Execute and allow output to flow through the pipeline
+            # Outputs the raw transcript to stdout so it can be piped to a pattern:
+            #   yt URL | fabric -p extract_wisdom
             fabric -y $videoLink $transcriptFlag
         }
     }
 }
 ```
 
-This also creates a `yt` alias that allows you to use `yt https://www.youtube.com/watch?v=4b0iet22VIk` to get transcripts, comments, and metadata.
+This also creates a `yt` helper that outputs a YouTube transcript to stdout. Pipe it to a pattern to process it with fabric:
+
+```shell
+yt https://www.youtube.com/watch?v=4b0iet22VIk | fabric -p extract_wisdom
+```
+
+Use `yt` without a pipe to review the raw transcript first.
 
 #### Save your files in markdown using aliases
 
@@ -658,41 +687,55 @@ Application Options:
   -T, --topp=                       Set top P (default: 0.9)
   -s, --stream                      Stream
   -P, --presencepenalty=            Set presence penalty (default: 0.0)
-  -r, --raw                         Use the defaults of the model without sending chat options
-                                    (temperature, top_p, etc.). Only affects OpenAI-compatible providers.
-                                    Anthropic models always use smart parameter selection to comply with
-                                    model-specific requirements.
+  -r, --raw                         Use the defaults of the model without sending chat options (temperature,
+                                    top_p, etc.). Only affects OpenAI-compatible providers. Anthropic models
+                                    always use smart parameter selection to comply with model-specific
+                                    requirements.
   -F, --frequencypenalty=           Set frequency penalty (default: 0.0)
   -l, --listpatterns                List all patterns
+      --readpattern=                Print the contents of the named pattern to the terminal
   -L, --listmodels                  List all available models
   -x, --listcontexts                List all contexts
   -X, --listsessions                List all sessions
   -U, --updatepatterns              Update patterns
   -c, --copy                        Copy to clipboard
   -m, --model=                      Choose model
-  -V, --vendor=                     Specify vendor for chosen model (e.g., -V "LM Studio" -m openai/gpt-oss-20b)
+  -V, --vendor=                     Specify vendor for the selected model (e.g., -V "LM Studio" -m
+                                    openai/gpt-oss-20b)
       --modelContextLength=         Model context length (only affects ollama)
   -o, --output=                     Output to file
       --output-session              Output the entire session (also a temporary one) to the output file
-  -n, --latest=                     Number of latest patterns to list (default: 0)
+      --extract                     Output only the first fenced code block from the response (full response if
+                                    none is found)
+      --extract-last                Output only the last fenced code block from the response (full response if
+                                    none is found)
+  -n, --latest=                     Number of latest patterns to list
   -d, --changeDefaultModel          Change default model
-  -y, --youtube=                    YouTube video or play list "URL" to grab transcript, comments from it
-                                    and send to chat or print it put to the console and store it in the
-                                    output file
+  -y, --youtube=                    YouTube video or play list "URL" to grab transcript, comments from it and
+                                    send to chat or print it put to the console and store it in the output file
       --playlist                    Prefer playlist over video if both ids are present in the URL
       --transcript                  Grab transcript from YouTube video and send to chat (it is used per
                                     default).
       --transcript-with-timestamps  Grab transcript from YouTube video with timestamps and send to chat
+      --visual                      Extract visual data from video using OCR and FFmpeg
+      --visual-sensitivity=         Tolerance for FFmpeg scene detection (0.0 - 1.0) (default: 0.4)
+      --visual-fps=                 Extract a specific number of frames per second instead of using scene
+                                    detection
       --comments                    Grab comments from YouTube video and send to chat
       --metadata                    Output video metadata
-  -g, --language=                   Specify the Language Code for the chat, e.g. -g=en -g=zh
+      --yt-dlp-args=                Additional arguments to pass to yt-dlp (e.g. '--cookies-from-browser brave')
+      --spotify=                    Spotify podcast or episode URL to grab metadata from and send to chat
+  -g, --language=                   Specify the Language Code for the chat, e.g. -g=en -g=zh -g=pt-BR -g=pt-PT
   -u, --scrape_url=                 Scrape website URL to markdown using Jina AI
   -q, --scrape_question=            Search question using Jina AI
+      --serply_search=              Search Google using Serply and send the results to chat
+      --firecrawl_search=           Search the web using Firecrawl and send the top pages to chat as Markdown
   -e, --seed=                       Seed to be used for LMM generation
   -w, --wipecontext=                Wipe context
   -W, --wipesession=                Wipe session
       --printcontext=               Print context
       --printsession=               Print session
+      --print-prompt                Print the rendered prompt without sending it to a model
       --readability                 Convert HTML input into a clean, readable view
       --input-has-vars              Apply variables to user input
       --no-variable-replacement     Disable pattern variable replacement
@@ -701,6 +744,7 @@ Application Options:
       --serveOllama                 Serve the Fabric Rest API with ollama endpoints
       --address=                    The address to bind the REST API (default: :8080)
       --api-key=                    API key used to secure server routes
+      --cors-origins=               Browser origins that can call the server (repeatable; * for all)
       --config=                     Path to YAML config file
       --version                     Print current version
       --listextensions              List all registered extensions
@@ -710,29 +754,31 @@ Application Options:
       --liststrategies              List all strategies
       --listvendors                 List all vendors
       --shell-complete-list         Output raw list without headers/formatting (for shell completion)
-      --search                      Enable web search tool for supported models (Anthropic, OpenAI, Gemini)
+      --search                      Enable web search tool for supported models (Anthropic, OpenAI, Gemini, Grok)
       --search-location=            Set location for web search results (e.g., 'America/Los_Angeles')
       --image-file=                 Save generated image to specified file path (e.g., 'output.png')
       --image-size=                 Image dimensions: 1024x1024, 1536x1024, 1024x1536, auto (default: auto)
       --image-quality=              Image quality: low, medium, high, auto (default: auto)
       --image-compression=          Compression level 0-100 for JPEG/WebP formats (default: not set)
-      --image-background=           Background type: opaque, transparent (default: opaque, only for
-                                    PNG/WebP)
+      --image-background=           Background type: opaque, transparent (default: opaque, only for PNG/WebP)
       --suppress-think              Suppress text enclosed in thinking tags
       --think-start-tag=            Start tag for thinking sections (default: <think>)
       --think-end-tag=              End tag for thinking sections (default: </think>)
       --disable-responses-api       Disable OpenAI Responses API (default: false)
-      --voice=                      TTS voice name for supported models (e.g., Kore, Charon, Puck)
-                                    (default: Kore)
+      --transcribe-file=            Audio or video file to transcribe
+      --transcribe-model=           Model to use for transcription (separate from chat model)
+      --split-media-file            Split audio/video files larger than 25MB using ffmpeg
+      --voice=                      TTS voice name for supported models (e.g., Kore, Charon, Puck) (default:
+                                    Kore)
       --list-gemini-voices          List all available Gemini TTS voices
+      --list-transcription-models   List all available transcription models
       --notification                Send desktop notification when command completes
-      --notification-command=       Custom command to run for notifications (overrides built-in
-                                    notifications)
-      --yt-dlp-args=                Additional arguments to pass to yt-dlp (e.g. '--cookies-from-browser brave')
-      --thinking=                   Set reasoning/thinking level (e.g., off, low, medium, high, or
-                                    numeric tokens for Anthropic or Google Gemini)
+      --notification-command=       Custom command to run for notifications (overrides built-in notifications)
+      --thinking=                   Set reasoning/thinking level (e.g., off, low, medium, high, or numeric
+                                    tokens for Anthropic or Google Gemini)
       --show-metadata               Print metadata (input/output tokens) to stderr
-      --debug=                     Set debug level (0: off, 1: basic, 2: detailed, 3: trace)
+      --debug=                      Set debug level (0=off, 1=basic, 2=detailed, 3=trace, 4=wire)
+
 Help Options:
   -h, --help                        Show this help message
 ```
@@ -745,6 +791,7 @@ Use the `--debug` flag to control runtime logging:
 - `1`: basic debug info
 - `2`: detailed debugging
 - `3`: trace level
+- `4`: wire level (full request and response bodies)
 
 ### Dry Run Mode
 
@@ -755,6 +802,18 @@ echo "test input" | fabric --dry-run -p summarize
 ```
 
 This is useful for debugging patterns, checking prompt construction, and verifying input formatting before using API credits.
+
+### Prompt Export
+
+Use `--print-prompt` to render Fabric's composed prompt and exit before any model call:
+
+```bash
+echo "test input" | fabric --print-prompt -p summarize
+```
+
+This is useful when you want to reuse Fabric's prompt library with other CLI LLM tools or inspect the exact system and user message structure Fabric would compose.
+
+Some models need raw mode, which merges the system message into the user message. To show the structure for such a model, give the model with `-m` (or `FABRIC_MODEL_<PATTERN>`). Fabric then finds the vendor, which can send a model-list request. Without a model, the export shows the system and user messages separately, unless you set `--raw`.
 
 ### Extensions
 
